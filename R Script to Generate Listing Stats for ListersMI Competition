@@ -1,0 +1,1017 @@
+library(dplyr)
+library(lubridate)
+MyData<-read.csv("MyEBirdData.csv")
+MyData<-subset(MyData, select = -c(Submission.ID,
+                                   Scientific.Name,
+                                   Count,
+                                   Location.ID,
+                                   Location,
+                                   Latitude,
+                                   Longitude,
+                                   Protocol,
+                                   Time,
+                                   Duration..Min.,
+                                   All.Obs.Reported,
+                                   ML.Catalog.Numbers,
+                                   Observation.Details,
+                                   Checklist.Comments,
+                                   Breeding.Code,
+                                   Number.of.Observers,
+                                   Area.Covered..ha.,
+                                   Distance.Traveled..km.)) 
+MyData<-subset(MyData, State.Province == "US-AL"| 
+                 State.Province == "US-AK" |
+                 State.Province == "US-AZ" |
+                 State.Province == "US-AR" |
+                 State.Province == "US-CA" |
+                 State.Province == "US-CO" |
+                 State.Province == "US-CT" |
+                 State.Province == "US-DE" |
+                 State.Province == "US-DC" |
+                 State.Province == "US-FL" |
+                 State.Province == "US-GA" |
+                 State.Province == "US-HI" |
+                 State.Province == "US-ID" |
+                 State.Province == "US-IL" |
+                 State.Province == "US-IN" |
+                 State.Province == "US-IA" |
+                 State.Province == "US-KS" |
+                 State.Province == "US-KY" |
+                 State.Province == "US-LA" |
+                 State.Province == "US-ME" |
+                 State.Province == "US-MD" |
+                 State.Province == "US-MA" |
+                 State.Province == "US-MI" | 
+                 State.Province == "US-MN" |
+                 State.Province == "US-MS" |
+                 State.Province == "US-MO" |
+                 State.Province == "US-MT" |
+                 State.Province == "US-NE" |
+                 State.Province == "US-NV" |
+                 State.Province == "US-NH" |
+                 State.Province == "US-NJ" |
+                 State.Province == "US-NM" |
+                 State.Province == "US-NY" |
+                 State.Province == "US-NC" |
+                 State.Province == "US-ND" |
+                 State.Province == "US-OH" |
+                 State.Province == "US-OK" |
+                 State.Province == "US-OR" |
+                 State.Province == "US-PA" |
+                 State.Province == "US-RI" |
+                 State.Province == "US-SD" |
+                 State.Province == "US-SC" |
+                 State.Province == "US-TE" |
+                 State.Province == "US-TX" |
+                 State.Province == "US-UT" |
+                 State.Province == "US-VT" |
+                 State.Province == "US-VA" |
+                 State.Province == "US-WA" |
+                 State.Province == "US-WV" |
+                 State.Province == "US-WI" |
+                 State.Province == "US-WY")
+JoinKey<-read.csv("ClementsLabelKey.csv")
+JoinedData<-inner_join(MyData, JoinKey, by = c("Taxonomic.Order"="TAXON_ORDER"))
+MyData<-subset(JoinedData, select = -c(English.name,
+                                       scientific.name))
+MyData <- filter(MyData, category == "species" |
+                   category == "group (polytypic)" |
+                   category == "group (monotypic)" |
+                   category == "subspecies" |
+                   category == "form" |
+                   category == "domestic" )
+ProperCodes<-filter(MyData, category == "species")
+Groups<-filter(MyData, category != "species",
+               category != "spuh",
+               category != "slash",
+               category != "hybrid",
+               Common.Name != "Graylag Goose (Domestic type)",
+               Common.Name != "Swan Goose (Domestic type)",
+               Common.Name != "Domestic goose sp. (Domestic type)",
+               Common.Name != "Muscovy Duck (Domestic type)",
+               Common.Name != "Mallard (Domestic type)",
+               Common.Name != "Helmeted Guineafowl (Domestic type)",
+               Common.Name != "Indian Peafowl (Domestic type)",
+               Common.Name != "Red Junglefowl (Domestic type)",
+               Common.Name != "Wild Turkey (Domestic type)",
+               Common.Name != "African Collared-Dove (Domestic type or Ringed Turtle-Dove)",
+               Common.Name != "Cockatiel (Domestic type)",
+               Common.Name != "Budgerigar (Domestic type)",
+               Common.Name != "Island Canary (Domestic type)")
+CountableFeralPigeons<-filter(Groups, Common.Name == "Rock Pigeon (Feral Pigeon)")
+CountableFeralPigeons$Common.Name<-recode(CountableFeralPigeons$Common.Name, "Rock Pigeon (Feral Pigeon)" = "Rock Pigeon")
+CountableFeralMuscovys<-filter(Groups, Common.Name == "Muscovy Duck (Established Feral)")
+CountableFeralMuscovys<-mutate(CountableFeralMuscovys, Taxonomic.Order = Taxonomic.Order-1)
+CountableFeralMuscovys$Common.Name<-recode(CountableFeralMuscovys$Common.Name, "Muscovy Duck (Established Feral)" = "Muscovy Duck")
+Groups<-filter(Groups, Common.Name != "Rock Pigeon (Feral Pigeon)",
+               Common.Name != "Muscovy Duck (Established Feral)")
+CountableExotics<-rbind(CountableFeralMuscovys, CountableFeralPigeons)
+ProperCodes<-rbind(ProperCodes, CountableExotics)
+Groups<-mutate(Groups, Tax.Order.New = Taxonomic.Order-1)
+GroupsJoin1<-inner_join(Groups, JoinKey, by = c("Tax.Order.New" = "TAXON_ORDER"))
+GroupsJoin1<-subset(GroupsJoin1, select = -c(Common.Name,
+                                             scientific.name,
+                                             category.x,
+                                             Taxonomic.Order))
+Out<-subset(GroupsJoin1, category.y == "species")
+Out<-Out[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(Out)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+ProperCodes<-rbind(ProperCodes, Out)
+GroupsJoin1<-GroupsJoin1[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(GroupsJoin1)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+GroupsJoin1<-filter(GroupsJoin1, category != "species")
+
+GroupsJoin1<-mutate(GroupsJoin1, Tax.Order.New = Taxonomic.Order-1)
+GroupsJoin1<-inner_join(GroupsJoin1, JoinKey, by = c("Tax.Order.New" = "TAXON_ORDER"))
+GroupsJoin1<-subset(GroupsJoin1, select = -c(Common.Name,
+                                             scientific.name,
+                                             category.x,
+                                             Taxonomic.Order))
+Out<-subset(GroupsJoin1, category.y == "species")
+Out<-Out[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(Out)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+ProperCodes<-rbind(ProperCodes, Out)
+GroupsJoin1<-GroupsJoin1[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(GroupsJoin1)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+GroupsJoin1<-filter(GroupsJoin1, category != "species")
+
+GroupsJoin1<-mutate(GroupsJoin1, Tax.Order.New = Taxonomic.Order-1)
+GroupsJoin1<-inner_join(GroupsJoin1, JoinKey, by = c("Tax.Order.New" = "TAXON_ORDER"))
+GroupsJoin1<-subset(GroupsJoin1, select = -c(Common.Name,
+                                             scientific.name,
+                                             category.x,
+                                             Taxonomic.Order))
+Out<-subset(GroupsJoin1, category.y == "species")
+Out<-Out[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(Out)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+ProperCodes<-rbind(ProperCodes, Out)
+GroupsJoin1<-GroupsJoin1[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(GroupsJoin1)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+GroupsJoin1<-filter(GroupsJoin1, category != "species")
+
+GroupsJoin1<-mutate(GroupsJoin1, Tax.Order.New = Taxonomic.Order-1)
+GroupsJoin1<-inner_join(GroupsJoin1, JoinKey, by = c("Tax.Order.New" = "TAXON_ORDER"))
+GroupsJoin1<-subset(GroupsJoin1, select = -c(Common.Name,
+                                             scientific.name,
+                                             category.x,
+                                             Taxonomic.Order))
+Out<-subset(GroupsJoin1, category.y == "species")
+Out<-Out[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(Out)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+ProperCodes<-rbind(ProperCodes, Out)
+GroupsJoin1<-GroupsJoin1[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(GroupsJoin1)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+GroupsJoin1<-filter(GroupsJoin1, category != "species")
+
+GroupsJoin1<-mutate(GroupsJoin1, Tax.Order.New = Taxonomic.Order-1)
+GroupsJoin1<-inner_join(GroupsJoin1, JoinKey, by = c("Tax.Order.New" = "TAXON_ORDER"))
+GroupsJoin1<-subset(GroupsJoin1, select = -c(Common.Name,
+                                             scientific.name,
+                                             category.x,
+                                             Taxonomic.Order))
+Out<-subset(GroupsJoin1, category.y == "species")
+Out<-Out[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(Out)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+ProperCodes<-rbind(ProperCodes, Out)
+GroupsJoin1<-GroupsJoin1[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(GroupsJoin1)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+GroupsJoin1<-filter(GroupsJoin1, category != "species")
+
+
+GroupsJoin1<-mutate(GroupsJoin1, Tax.Order.New = Taxonomic.Order-1)
+GroupsJoin1<-inner_join(GroupsJoin1, JoinKey, by = c("Tax.Order.New" = "TAXON_ORDER"))
+GroupsJoin1<-subset(GroupsJoin1, select = -c(Common.Name,
+                                             scientific.name,
+                                             category.x,
+                                             Taxonomic.Order))
+Out<-subset(GroupsJoin1, category.y == "species")
+Out<-Out[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(Out)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+ProperCodes<-rbind(ProperCodes, Out)
+GroupsJoin1<-GroupsJoin1[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(GroupsJoin1)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+GroupsJoin1<-filter(GroupsJoin1, category != "species")
+
+GroupsJoin1<-mutate(GroupsJoin1, Tax.Order.New = Taxonomic.Order-1)
+GroupsJoin1<-inner_join(GroupsJoin1, JoinKey, by = c("Tax.Order.New" = "TAXON_ORDER"))
+GroupsJoin1<-subset(GroupsJoin1, select = -c(Common.Name,
+                                             scientific.name,
+                                             category.x,
+                                             Taxonomic.Order))
+Out<-subset(GroupsJoin1, category.y == "species")
+Out<-Out[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(Out)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+ProperCodes<-rbind(ProperCodes, Out)
+GroupsJoin1<-GroupsJoin1[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(GroupsJoin1)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+GroupsJoin1<-filter(GroupsJoin1, category != "species")
+
+GroupsJoin1<-mutate(GroupsJoin1, Tax.Order.New = Taxonomic.Order-1)
+GroupsJoin1<-inner_join(GroupsJoin1, JoinKey, by = c("Tax.Order.New" = "TAXON_ORDER"))
+GroupsJoin1<-subset(GroupsJoin1, select = -c(Common.Name,
+                                             scientific.name,
+                                             category.x,
+                                             Taxonomic.Order))
+Out<-subset(GroupsJoin1, category.y == "species")
+Out<-Out[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(Out)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+ProperCodes<-rbind(ProperCodes, Out)
+GroupsJoin1<-GroupsJoin1[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(GroupsJoin1)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+GroupsJoin1<-filter(GroupsJoin1, category != "species")
+
+GroupsJoin1<-mutate(GroupsJoin1, Tax.Order.New = Taxonomic.Order-1)
+GroupsJoin1<-inner_join(GroupsJoin1, JoinKey, by = c("Tax.Order.New" = "TAXON_ORDER"))
+GroupsJoin1<-subset(GroupsJoin1, select = -c(Common.Name,
+                                             scientific.name,
+                                             category.x,
+                                             Taxonomic.Order))
+Out<-subset(GroupsJoin1, category.y == "species")
+Out<-Out[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(Out)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+ProperCodes<-rbind(ProperCodes, Out)
+GroupsJoin1<-GroupsJoin1[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(GroupsJoin1)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+GroupsJoin1<-filter(GroupsJoin1, category != "species")
+
+GroupsJoin1<-mutate(GroupsJoin1, Tax.Order.New = Taxonomic.Order-1)
+GroupsJoin1<-inner_join(GroupsJoin1, JoinKey, by = c("Tax.Order.New" = "TAXON_ORDER"))
+GroupsJoin1<-subset(GroupsJoin1, select = -c(Common.Name,
+                                             scientific.name,
+                                             category.x,
+                                             Taxonomic.Order))
+Out<-subset(GroupsJoin1, category.y == "species")
+Out<-Out[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(Out)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+ProperCodes<-rbind(ProperCodes, Out)
+GroupsJoin1<-GroupsJoin1[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(GroupsJoin1)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+GroupsJoin1<-filter(GroupsJoin1, category != "species")
+
+GroupsJoin1<-mutate(GroupsJoin1, Tax.Order.New = Taxonomic.Order-1)
+GroupsJoin1<-inner_join(GroupsJoin1, JoinKey, by = c("Tax.Order.New" = "TAXON_ORDER"))
+GroupsJoin1<-subset(GroupsJoin1, select = -c(Common.Name,
+                                             scientific.name,
+                                             category.x,
+                                             Taxonomic.Order))
+Out<-subset(GroupsJoin1, category.y == "species")
+Out<-Out[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(Out)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+ProperCodes<-rbind(ProperCodes, Out)
+GroupsJoin1<-GroupsJoin1[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(GroupsJoin1)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+GroupsJoin1<-filter(GroupsJoin1, category != "species")
+
+GroupsJoin1<-mutate(GroupsJoin1, Tax.Order.New = Taxonomic.Order-1)
+GroupsJoin1<-inner_join(GroupsJoin1, JoinKey, by = c("Tax.Order.New" = "TAXON_ORDER"))
+GroupsJoin1<-subset(GroupsJoin1, select = -c(Common.Name,
+                                             scientific.name,
+                                             category.x,
+                                             Taxonomic.Order))
+Out<-subset(GroupsJoin1, category.y == "species")
+Out<-Out[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(Out)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+ProperCodes<-rbind(ProperCodes, Out)
+GroupsJoin1<-GroupsJoin1[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(GroupsJoin1)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+GroupsJoin1<-filter(GroupsJoin1, category != "species")
+
+GroupsJoin1<-mutate(GroupsJoin1, Tax.Order.New = Taxonomic.Order-1)
+GroupsJoin1<-inner_join(GroupsJoin1, JoinKey, by = c("Tax.Order.New" = "TAXON_ORDER"))
+GroupsJoin1<-subset(GroupsJoin1, select = -c(Common.Name,
+                                             scientific.name,
+                                             category.x,
+                                             Taxonomic.Order))
+Out<-subset(GroupsJoin1, category.y == "species")
+Out<-Out[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(Out)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+ProperCodes<-rbind(ProperCodes, Out)
+GroupsJoin1<-GroupsJoin1[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(GroupsJoin1)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+GroupsJoin1<-filter(GroupsJoin1, category != "species")
+
+GroupsJoin1<-mutate(GroupsJoin1, Tax.Order.New = Taxonomic.Order-1)
+GroupsJoin1<-inner_join(GroupsJoin1, JoinKey, by = c("Tax.Order.New" = "TAXON_ORDER"))
+GroupsJoin1<-subset(GroupsJoin1, select = -c(Common.Name,
+                                             scientific.name,
+                                             category.x,
+                                             Taxonomic.Order))
+Out<-subset(GroupsJoin1, category.y == "species")
+Out<-Out[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(Out)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+ProperCodes<-rbind(ProperCodes, Out)
+GroupsJoin1<-GroupsJoin1[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(GroupsJoin1)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+GroupsJoin1<-filter(GroupsJoin1, category != "species")
+
+GroupsJoin1<-mutate(GroupsJoin1, Tax.Order.New = Taxonomic.Order-1)
+GroupsJoin1<-inner_join(GroupsJoin1, JoinKey, by = c("Tax.Order.New" = "TAXON_ORDER"))
+GroupsJoin1<-subset(GroupsJoin1, select = -c(Common.Name,
+                                             scientific.name,
+                                             category.x,
+                                             Taxonomic.Order))
+Out<-subset(GroupsJoin1, category.y == "species")
+Out<-Out[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(Out)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+ProperCodes<-rbind(ProperCodes, Out)
+GroupsJoin1<-GroupsJoin1[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(GroupsJoin1)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+GroupsJoin1<-filter(GroupsJoin1, category != "species")
+
+GroupsJoin1<-mutate(GroupsJoin1, Tax.Order.New = Taxonomic.Order-1)
+GroupsJoin1<-inner_join(GroupsJoin1, JoinKey, by = c("Tax.Order.New" = "TAXON_ORDER"))
+GroupsJoin1<-subset(GroupsJoin1, select = -c(Common.Name,
+                                             scientific.name,
+                                             category.x,
+                                             Taxonomic.Order))
+Out<-subset(GroupsJoin1, category.y == "species")
+Out<-Out[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(Out)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+ProperCodes<-rbind(ProperCodes, Out)
+GroupsJoin1<-GroupsJoin1[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(GroupsJoin1)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+GroupsJoin1<-filter(GroupsJoin1, category != "species")
+
+GroupsJoin1<-mutate(GroupsJoin1, Tax.Order.New = Taxonomic.Order-1)
+GroupsJoin1<-inner_join(GroupsJoin1, JoinKey, by = c("Tax.Order.New" = "TAXON_ORDER"))
+GroupsJoin1<-subset(GroupsJoin1, select = -c(Common.Name,
+                                             scientific.name,
+                                             category.x,
+                                             Taxonomic.Order))
+Out<-subset(GroupsJoin1, category.y == "species")
+Out<-Out[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(Out)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+ProperCodes<-rbind(ProperCodes, Out)
+GroupsJoin1<-GroupsJoin1[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(GroupsJoin1)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+GroupsJoin1<-filter(GroupsJoin1, category != "species")
+
+GroupsJoin1<-mutate(GroupsJoin1, Tax.Order.New = Taxonomic.Order-1)
+GroupsJoin1<-inner_join(GroupsJoin1, JoinKey, by = c("Tax.Order.New" = "TAXON_ORDER"))
+GroupsJoin1<-subset(GroupsJoin1, select = -c(Common.Name,
+                                             scientific.name,
+                                             category.x,
+                                             Taxonomic.Order))
+Out<-subset(GroupsJoin1, category.y == "species")
+Out<-Out[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(Out)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+ProperCodes<-rbind(ProperCodes, Out)
+GroupsJoin1<-GroupsJoin1[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(GroupsJoin1)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+GroupsJoin1<-filter(GroupsJoin1, category != "species")
+
+GroupsJoin1<-mutate(GroupsJoin1, Tax.Order.New = Taxonomic.Order-1)
+GroupsJoin1<-inner_join(GroupsJoin1, JoinKey, by = c("Tax.Order.New" = "TAXON_ORDER"))
+GroupsJoin1<-subset(GroupsJoin1, select = -c(Common.Name,
+                                             scientific.name,
+                                             category.x,
+                                             Taxonomic.Order))
+Out<-subset(GroupsJoin1, category.y == "species")
+Out<-Out[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(Out)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+ProperCodes<-rbind(ProperCodes, Out)
+GroupsJoin1<-GroupsJoin1[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(GroupsJoin1)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+GroupsJoin1<-filter(GroupsJoin1, category != "species")
+
+GroupsJoin1<-mutate(GroupsJoin1, Tax.Order.New = Taxonomic.Order-1)
+GroupsJoin1<-inner_join(GroupsJoin1, JoinKey, by = c("Tax.Order.New" = "TAXON_ORDER"))
+GroupsJoin1<-subset(GroupsJoin1, select = -c(Common.Name,
+                                             scientific.name,
+                                             category.x,
+                                             Taxonomic.Order))
+Out<-subset(GroupsJoin1, category.y == "species")
+Out<-Out[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(Out)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+ProperCodes<-rbind(ProperCodes, Out)
+GroupsJoin1<-GroupsJoin1[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(GroupsJoin1)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+GroupsJoin1<-filter(GroupsJoin1, category != "species")
+
+GroupsJoin1<-mutate(GroupsJoin1, Tax.Order.New = Taxonomic.Order-1)
+GroupsJoin1<-inner_join(GroupsJoin1, JoinKey, by = c("Tax.Order.New" = "TAXON_ORDER"))
+GroupsJoin1<-subset(GroupsJoin1, select = -c(Common.Name,
+                                             scientific.name,
+                                             category.x,
+                                             Taxonomic.Order))
+Out<-subset(GroupsJoin1, category.y == "species")
+Out<-Out[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(Out)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+ProperCodes<-rbind(ProperCodes, Out)
+GroupsJoin1<-GroupsJoin1[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(GroupsJoin1)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+GroupsJoin1<-filter(GroupsJoin1, category != "species")
+
+GroupsJoin1<-mutate(GroupsJoin1, Tax.Order.New = Taxonomic.Order-1)
+GroupsJoin1<-inner_join(GroupsJoin1, JoinKey, by = c("Tax.Order.New" = "TAXON_ORDER"))
+GroupsJoin1<-subset(GroupsJoin1, select = -c(Common.Name,
+                                             scientific.name,
+                                             category.x,
+                                             Taxonomic.Order))
+Out<-subset(GroupsJoin1, category.y == "species")
+Out<-Out[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(Out)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+ProperCodes<-rbind(ProperCodes, Out)
+GroupsJoin1<-GroupsJoin1[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(GroupsJoin1)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+GroupsJoin1<-filter(GroupsJoin1, category != "species")
+
+GroupsJoin1<-mutate(GroupsJoin1, Tax.Order.New = Taxonomic.Order-1)
+GroupsJoin1<-inner_join(GroupsJoin1, JoinKey, by = c("Tax.Order.New" = "TAXON_ORDER"))
+GroupsJoin1<-subset(GroupsJoin1, select = -c(Common.Name,
+                                             scientific.name,
+                                             category.x,
+                                             Taxonomic.Order))
+Out<-subset(GroupsJoin1, category.y == "species")
+Out<-Out[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(Out)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+ProperCodes<-rbind(ProperCodes, Out)
+GroupsJoin1<-GroupsJoin1[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(GroupsJoin1)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+GroupsJoin1<-filter(GroupsJoin1, category != "species")
+
+GroupsJoin1<-mutate(GroupsJoin1, Tax.Order.New = Taxonomic.Order-1)
+GroupsJoin1<-inner_join(GroupsJoin1, JoinKey, by = c("Tax.Order.New" = "TAXON_ORDER"))
+GroupsJoin1<-subset(GroupsJoin1, select = -c(Common.Name,
+                                             scientific.name,
+                                             category.x,
+                                             Taxonomic.Order))
+Out<-subset(GroupsJoin1, category.y == "species")
+Out<-Out[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(Out)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+ProperCodes<-rbind(ProperCodes, Out)
+GroupsJoin1<-GroupsJoin1[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(GroupsJoin1)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+GroupsJoin1<-filter(GroupsJoin1, category != "species")
+
+GroupsJoin1<-mutate(GroupsJoin1, Tax.Order.New = Taxonomic.Order-1)
+GroupsJoin1<-inner_join(GroupsJoin1, JoinKey, by = c("Tax.Order.New" = "TAXON_ORDER"))
+GroupsJoin1<-subset(GroupsJoin1, select = -c(Common.Name,
+                                             scientific.name,
+                                             category.x,
+                                             Taxonomic.Order))
+Out<-subset(GroupsJoin1, category.y == "species")
+Out<-Out[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(Out)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+ProperCodes<-rbind(ProperCodes, Out)
+GroupsJoin1<-GroupsJoin1[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(GroupsJoin1)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+GroupsJoin1<-filter(GroupsJoin1, category != "species")
+
+GroupsJoin1<-mutate(GroupsJoin1, Tax.Order.New = Taxonomic.Order-1)
+GroupsJoin1<-inner_join(GroupsJoin1, JoinKey, by = c("Tax.Order.New" = "TAXON_ORDER"))
+GroupsJoin1<-subset(GroupsJoin1, select = -c(Common.Name,
+                                             scientific.name,
+                                             category.x,
+                                             Taxonomic.Order))
+Out<-subset(GroupsJoin1, category.y == "species")
+Out<-Out[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(Out)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+ProperCodes<-rbind(ProperCodes, Out)
+GroupsJoin1<-GroupsJoin1[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(GroupsJoin1)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+GroupsJoin1<-filter(GroupsJoin1, category != "species")
+
+
+GroupsJoin1<-mutate(GroupsJoin1, Tax.Order.New = Taxonomic.Order-1)
+GroupsJoin1<-inner_join(GroupsJoin1, JoinKey, by = c("Tax.Order.New" = "TAXON_ORDER"))
+GroupsJoin1<-subset(GroupsJoin1, select = -c(Common.Name,
+                                             scientific.name,
+                                             category.x,
+                                             Taxonomic.Order))
+Out<-subset(GroupsJoin1, category.y == "species")
+Out<-Out[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(Out)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+ProperCodes<-rbind(ProperCodes, Out)
+GroupsJoin1<-GroupsJoin1[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(GroupsJoin1)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+GroupsJoin1<-filter(GroupsJoin1, category != "species")
+
+GroupsJoin1<-mutate(GroupsJoin1, Tax.Order.New = Taxonomic.Order-1)
+GroupsJoin1<-inner_join(GroupsJoin1, JoinKey, by = c("Tax.Order.New" = "TAXON_ORDER"))
+GroupsJoin1<-subset(GroupsJoin1, select = -c(Common.Name,
+                                             scientific.name,
+                                             category.x,
+                                             Taxonomic.Order))
+Out<-subset(GroupsJoin1, category.y == "species")
+Out<-Out[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(Out)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+ProperCodes<-rbind(ProperCodes, Out)
+GroupsJoin1<-GroupsJoin1[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(GroupsJoin1)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+GroupsJoin1<-filter(GroupsJoin1, category != "species")
+
+GroupsJoin1<-mutate(GroupsJoin1, Tax.Order.New = Taxonomic.Order-1)
+GroupsJoin1<-inner_join(GroupsJoin1, JoinKey, by = c("Tax.Order.New" = "TAXON_ORDER"))
+GroupsJoin1<-subset(GroupsJoin1, select = -c(Common.Name,
+                                             scientific.name,
+                                             category.x,
+                                             Taxonomic.Order))
+Out<-subset(GroupsJoin1, category.y == "species")
+Out<-Out[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(Out)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+ProperCodes<-rbind(ProperCodes, Out)
+GroupsJoin1<-GroupsJoin1[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(GroupsJoin1)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+GroupsJoin1<-filter(GroupsJoin1, category != "species")
+
+
+GroupsJoin1<-mutate(GroupsJoin1, Tax.Order.New = Taxonomic.Order-1)
+GroupsJoin1<-inner_join(GroupsJoin1, JoinKey, by = c("Tax.Order.New" = "TAXON_ORDER"))
+GroupsJoin1<-subset(GroupsJoin1, select = -c(Common.Name,
+                                             scientific.name,
+                                             category.x,
+                                             Taxonomic.Order))
+Out<-subset(GroupsJoin1, category.y == "species")
+Out<-Out[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(Out)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+ProperCodes<-rbind(ProperCodes, Out)
+GroupsJoin1<-GroupsJoin1[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(GroupsJoin1)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+GroupsJoin1<-filter(GroupsJoin1, category != "species")
+
+GroupsJoin1<-mutate(GroupsJoin1, Tax.Order.New = Taxonomic.Order-1)
+GroupsJoin1<-inner_join(GroupsJoin1, JoinKey, by = c("Tax.Order.New" = "TAXON_ORDER"))
+GroupsJoin1<-subset(GroupsJoin1, select = -c(Common.Name,
+                                             scientific.name,
+                                             category.x,
+                                             Taxonomic.Order))
+Out<-subset(GroupsJoin1, category.y == "species")
+Out<-Out[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(Out)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+ProperCodes<-rbind(ProperCodes, Out)
+GroupsJoin1<-GroupsJoin1[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(GroupsJoin1)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+GroupsJoin1<-filter(GroupsJoin1, category != "species")
+
+GroupsJoin1<-mutate(GroupsJoin1, Tax.Order.New = Taxonomic.Order-1)
+GroupsJoin1<-inner_join(GroupsJoin1, JoinKey, by = c("Tax.Order.New" = "TAXON_ORDER"))
+GroupsJoin1<-subset(GroupsJoin1, select = -c(Common.Name,
+                                             scientific.name,
+                                             category.x,
+                                             Taxonomic.Order))
+Out<-subset(GroupsJoin1, category.y == "species")
+Out<-Out[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(Out)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+ProperCodes<-rbind(ProperCodes, Out)
+GroupsJoin1<-GroupsJoin1[c("English.name","Tax.Order.New","State.Province","County","Date","category.y")]
+colnames(GroupsJoin1)<- c("Common.Name", "Taxonomic.Order", "State.Province", "County", "Date", "category")
+GroupsJoin1<-filter(GroupsJoin1, category != "species")
+
+ProperCodes<-mutate(ProperCodes, StateFIPs = State.Province)
+ProperCodes$StateFIPs<-recode(ProperCodes$StateFIPs, "US-AL" = 01, 
+                              "US-AK" = 02, "US-AZ" = 04, "US-AR" = 05, "US-CA" = 06, "US-CO" = 08,
+                              "US-CT" = 09, "US-DE" = 10, "US-DC" = 11, "US-FL" = 12, "US-GA" = 13,
+                              "US-HI" = 15, "US-ID" = 16, "US-IL" = 17, "US-IN" = 18, "US-IA" = 19,
+                              "US-KS" = 20, "US-KY" = 21, "US-LA" = 22, "US-ME" = 23, "US-MD" = 24,
+                              "US-MA" = 25, "US-MI" = 26, "US-MN" = 27, "US-MS" = 28, "US-MO" = 29,
+                              "US-MT" = 30, "US-NE" = 31, "US-NV" = 32, "US-NH" = 33, "US-NJ" = 34,
+                              "US-NM" = 35, "US-NY" = 36, "US-NC" = 37, "US-ND" = 38, "US-OH" = 39,
+                              "US-OK" = 40, "US-OR" = 41, "US-PA" = 42, "US-RI" = 44, "US-SC" = 45,
+                              "US-SD" = 46, "US-TN" = 47, "US-TX" = 48, "US-UT" = 49, "US-VT" = 50,
+                              "US-VA" = 51, "US-WA" = 53, "US-WV" = 54, "US-WI" = 55, "US-WY" = 56,)
+rm(Out, Groups, GroupsJoin1, CountableExotics, CountableFeralMuscovys, CountableFeralPigeons)
+UScountyFIPS<-read.csv("US_FIPS_Codes.csv")
+ProperCodes<-inner_join(ProperCodes, UScountyFIPS, by = c("County" = "County.Name", "StateFIPs" = "FIPS.State"))
+ProperCodes<-mutate(ProperCodes, FIPS.full = 1000*StateFIPs + FIPS.County)
+ProperCodes<-subset(ProperCodes, select = -c(ï..State, category))
+ProperCodes<-ProperCodes %>%
+  dplyr::mutate(year = lubridate::year(Date), 
+                month = lubridate::month(Date), 
+                day = lubridate::day(Date))
+MIobs<-filter(ProperCodes, State.Province == "US-MI")
+MIobs<-filter(MIobs, Common.Name != "Whooping Crane",
+              Common.Name != "Egyptian Goose",
+              Common.Name != "Muscovy Duck",
+              Common.Name != "Mandarin Duck",
+              Common.Name != "Graylag Goose",
+              Common.Name != "Smew",
+              Common.Name != "Barnacle Goose")
+MIobs<-rbind(filter(MIobs, year <= 2005), filter(filter(MIobs, year > 2005), Common.Name != "Northern Bobwhite"))
+Michigan_State_Life_List<-tally(unique(subset(MIobs, select = c(Common.Name))))$n
+MichiganCountyLists<-as.data.frame(tally(~County, unique(subset(MIobs, select = c(Common.Name, County)))))
+Upper_Peninsula_Life_List<-tally(unique(subset(filter(MIobs, County == "Gogebic" |
+                                                        County == "Ontonagon" |
+                                                        County == "Dickinson" |
+                                                        County == "Iron" |
+                                                        County == "Keweenaw" |
+                                                        County == "Baraga" |
+                                                        County == "Houghton" |
+                                                        County == "Marquette" |
+                                                        County == "Delta" |
+                                                        County == "Menominee" |
+                                                        County == "Alger" |
+                                                        County == "Schoolcraft" |
+                                                        County == "Luce" |
+                                                        County == "Chippewa" |
+                                                        County == "Mackinac"), select = c(Common.Name))))$n
+Lower_Peninsula_Life_List<-tally(unique(subset(filter(MIobs, County != "Gogebic",
+                                                      County != "Ontonagon",
+                                                      County != "Dickinson",
+                                                      County != "Iron",
+                                                      County != "Keweenaw",
+                                                      County != "Baraga",
+                                                      County != "Houghton",
+                                                      County != "Marquette",
+                                                      County != "Delta",
+                                                      County != "Menominee",
+                                                      County != "Alger",
+                                                      County != "Schoolcraft",
+                                                      County != "Luce",
+                                                      County != "Chippewa",
+                                                      County != "Mackinac"), select = c(Common.Name))))$n
+Keweenaw_Peninsula_Life_List<-tally(unique(subset(filter(MIobs, County == "Keweenaw" |
+                                                           County == "Baraga" |
+                                                           County == "Houghton"), select = c(Common.Name))))$n
+Metro_Detroit_Life_List<-tally(unique(subset(filter(MIobs, County == "Macomb" |
+                                                      County == "Oakland" |
+                                                      County == "Wayne"), select = c(Common.Name))))$n
+MIticks<-MIobs[!duplicated(MIobs[,c('County','Common.Name')]),]
+Michigan_County_Ticks<-tally(MIticks)$n
+Keweenaw_Peninsula_County_Ticks<-tally(filter(MIticks, County == "Keweenaw" |
+                                                County == "Baraga" |
+                                                County == "Houghton"))$n
+Lower_Peninsula_County_Ticks<-tally(filter(MIticks, County != "Gogebic",
+                                           County != "Ontonagon",
+                                           County != "Dickinson",
+                                           County != "Iron",
+                                           County != "Keweenaw",
+                                           County != "Baraga",
+                                           County != "Houghton",
+                                           County != "Marquette",
+                                           County != "Delta",
+                                           County != "Menominee",
+                                           County != "Alger",
+                                           County != "Schoolcraft",
+                                           County != "Luce",
+                                           County != "Chippewa",
+                                           County != "Mackinac"))$n
+Upper_Peninsula_County_Ticks<-tally(filter(MIticks, County == "Gogebic" |
+                                             County == "Ontonagon" |
+                                             County == "Dickinson" |
+                                             County == "Iron" |
+                                             County == "Keweenaw" |
+                                             County == "Baraga" |
+                                             County == "Houghton" |
+                                             County == "Marquette" |
+                                             County == "Delta" |
+                                             County == "Menominee" |
+                                             County == "Alger" |
+                                             County == "Schoolcraft" |
+                                             County == "Luce" |
+                                             County == "Chippewa" |
+                                             County == "Mackinac"))$n
+Metro_Detroit_County_Ticks<-tally(filter(MIticks, County == "Macomb" |
+                                           County == "Oakland" |
+                                           County == "Wayne"))$n
+Saginaw_Bay_Life_List<-tally(unique(subset(filter(MIobs, County == "Bay" |
+                                                    County == "Saginaw" |
+                                                    County == "Midland" |
+                                                    County == "Tuscola" |
+                                                    County == "Huron" |
+                                                    County == "Arenac" |
+                                                    County == "Iosco"), select = c(Common.Name))))$n
+Saginaw_Bay_County_Ticks<-tally(filter(MIticks, County == "Bay" |
+                                         County == "Saginaw" |
+                                         County == "Midland" |
+                                         County == "Tuscola" |
+                                         County == "Huron" |
+                                         County == "Arenac" |
+                                         County == "Iosco"))$n
+Northern_Lower_Peninsula_Ticks<-tally(filter(MIticks, County == "Bay" |
+                                               County == "Midland" |
+                                               County == "Isabella" |
+                                               County == "Mecosta" |
+                                               County == "Newaygo" |
+                                               County == "Oceana" |
+                                               County == "Mason" |
+                                               County == "Lake" |
+                                               County == "Osceola" |
+                                               County == "Clare" |
+                                               County == "Gladwin" |
+                                               County == "Arenac" |
+                                               County == "Iosco" |
+                                               County == "Ogemaw" |
+                                               County == "Roscommon" |
+                                               County == "Missaukee" |
+                                               County == "Wexford" |
+                                               County == "Manistee" |
+                                               County == "Benzie" |
+                                               County == "Grand Traverse" |
+                                               County == "Kalkaska" |
+                                               County == "Crawford" |
+                                               County == "Oscoda" |
+                                               County == "Alcona" |
+                                               County == "Alpena" |
+                                               County == "Montmorency" |
+                                               County == "Otsego" |
+                                               County == "Antrim" |
+                                               County == "Leelanau" |
+                                               County == "Charlevoix" |
+                                               County == "Emmet" |
+                                               County == "Cheboygan" |
+                                               County == "Presque Isle"))$n
+Southern_Lower_Peninsula_Ticks<-tally(filter(MIticks, County == "Muskegon" |
+                                               County == "Ottawa" |
+                                               County == "Kent" |
+                                               County == "Montcalm" |
+                                               County == "Ionia" |
+                                               County == "Gratiot" |
+                                               County == "Clinton" |
+                                               County == "Shiawassee" |
+                                               County == "Saginaw" |
+                                               County == "Genessee" |
+                                               County == "Lapeer" |
+                                               County == "Tuscola" |
+                                               County == "Huron" |
+                                               County == "Sanilac" |
+                                               County == "St. Clair" |
+                                               County == "Macomb" |
+                                               County == "Oakland" |
+                                               County == "Livingston" |
+                                               County == "Ingham" |
+                                               County == "Eaton" |
+                                               County == "Barry" |
+                                               County == "Allegan" |
+                                               County == "Van Buren" |
+                                               County == "Kalamazoo" |
+                                               County == "Calhoun" |
+                                               County == "Jackson" |
+                                               County == "Washtenaw" |
+                                               County == "Wayne" |
+                                               County == "Monroe" |
+                                               County == "Lenawee" |
+                                               County == "Hillsdale" |
+                                               County == "Branch" |
+                                               County == "St. Joseph" |
+                                               County == "Cass" |
+                                               County == "Berrien"))$n
+MIticks2020<-tally(filter(MIobs, year == 2020)[!duplicated(filter(MIobs, year == 2020)[,c('County','Common.Name')]),])$n
+Michigan_January_List<-tally(filter(MIobs, month == 1)[!duplicated(filter(MIobs, month == 1)[,c('Common.Name')]),])$n
+Michigan_February_List<-tally(filter(MIobs, month == 2)[!duplicated(filter(MIobs, month == 2)[,c('Common.Name')]),])$n
+Michigan_March_List<-tally(filter(MIobs, month == 3)[!duplicated(filter(MIobs, month == 3)[,c('Common.Name')]),])$n
+Michigan_April_List<-tally(filter(MIobs, month == 4)[!duplicated(filter(MIobs, month == 4)[,c('Common.Name')]),])$n
+Michigan_May_List<-tally(filter(MIobs, month == 5)[!duplicated(filter(MIobs, month == 5)[,c('Common.Name')]),])$n
+Michigan_June_List<-tally(filter(MIobs, month == 6)[!duplicated(filter(MIobs, month == 6)[,c('Common.Name')]),])$n
+Michigan_July_List<-tally(filter(MIobs, month == 7)[!duplicated(filter(MIobs, month == 7)[,c('Common.Name')]),])$n
+Michigan_August_List<-tally(filter(MIobs, month == 8)[!duplicated(filter(MIobs, month == 8)[,c('Common.Name')]),])$n
+Michigan_September_List<-tally(filter(MIobs, month == 9)[!duplicated(filter(MIobs, month == 9)[,c('Common.Name')]),])$n
+Michigan_October_List<-tally(filter(MIobs, month == 10)[!duplicated(filter(MIobs, month == 10)[,c('Common.Name')]),])$n
+Michigan_November_List<-tally(filter(MIobs, month == 11)[!duplicated(filter(MIobs, month == 11)[,c('Common.Name')]),])$n
+Michigan_December_List<-tally(filter(MIobs, month == 12)[!duplicated(filter(MIobs, month == 12)[,c('Common.Name')]),])$n
+Michigan_All12Months_List<-tally(inner_join(inner_join(inner_join(inner_join(filter(MIobs, month == 1)[!duplicated(filter(MIobs, month == 1)[,c('Common.Name')]),], filter(MIobs, month == 2)[!duplicated(filter(MIobs, month == 2)[,c('Common.Name')]),], by = "Common.Name"),
+                                                                  inner_join(filter(MIobs, month == 3)[!duplicated(filter(MIobs, month == 3)[,c('Common.Name')]),], filter(MIobs, month == 4)[!duplicated(filter(MIobs, month == 4)[,c('Common.Name')]),], by = "Common.Name"), by = "Common.Name"),
+                                                       inner_join(inner_join(filter(MIobs, month == 5)[!duplicated(filter(MIobs, month == 5)[,c('Common.Name')]),], filter(MIobs, month == 6)[!duplicated(filter(MIobs, month == 6)[,c('Common.Name')]),], by = "Common.Name"),
+                                                                  inner_join(filter(MIobs, month == 7)[!duplicated(filter(MIobs, month == 7)[,c('Common.Name')]),], filter(MIobs, month == 8)[!duplicated(filter(MIobs, month == 8)[,c('Common.Name')]),], by = "Common.Name"), by = "Common.Name"), by = "Common.Name"),
+                                            inner_join(filter(MIobs, month == 11)[!duplicated(filter(MIobs, month == 11)[,c('Common.Name')]),], filter(MIobs, month == 12)[!duplicated(filter(MIobs, month == 12)[,c('Common.Name')]),], by = "Common.Name"), by = "Common.Name"))$n
+if(filter(MichiganCountyLists, County == "Allegan")$Freq >= 100){print(filter(MichiganCountyLists, County == "Allegan")$Freq)}
+
+filter(filter(MichiganCountyLists, County == "Alcona"), Freq >= 50)
+
+Your_Michigan_Listing_Totals<-data.frame("List or Other Total" = c("County Life Lists", 
+                                                                   if(filter(MichiganCountyLists, County == "Alcona")$Freq >= 100){print("Alcona")},
+                                                                   if(filter(MichiganCountyLists, County == "Alger")$Freq >= 100){print("Alger")}, 
+                                                                   if(filter(MichiganCountyLists, County == "Allegan")$Freq >= 100){print("Allegan")},
+                                                                   if(filter(MichiganCountyLists, County == "Alpena")$Freq >= 100){print("Alpena")},
+                                                                   if(filter(MichiganCountyLists, County == "Antrim")$Freq >= 100){print("Antrim")},
+                                                                   if(filter(MichiganCountyLists, County == "Arenac")$Freq >= 100){print("Arenac")}, 
+                                                                   if(filter(MichiganCountyLists, County == "Baraga")$Freq >= 100){print("Baraga")},
+                                                                   if(filter(MichiganCountyLists, County == "Barry")$Freq >= 100){print("Barry")},
+                                                                   if(filter(MichiganCountyLists, County == "Bay")$Freq >= 100){print("Bay")},
+                                                                   if(filter(MichiganCountyLists, County == "Benzie")$Freq >= 100){print("Benzie")}, 
+                                                                   if(filter(MichiganCountyLists, County == "Berrien")$Freq >= 100){print("Berrien")},
+                                                                   if(filter(MichiganCountyLists, County == "Branch")$Freq >= 100){print("Branch")},
+                                                                   if(filter(MichiganCountyLists, County == "Calhoun")$Freq >= 100){print("Calhoun")},
+                                                                   if(filter(MichiganCountyLists, County == "Cass")$Freq >= 100){print("Cass")}, 
+                                                                   if(filter(MichiganCountyLists, County == "Charlevoix")$Freq >= 100){print("Charlevoix")},
+                                                                   if(filter(MichiganCountyLists, County == "Cheboygan")$Freq >= 100){print("Cheboygan")},
+                                                                   if(filter(MichiganCountyLists, County == "Chippewa")$Freq >= 100){print("Chippewa")},
+                                                                   if(filter(MichiganCountyLists, County == "Clare")$Freq >= 100){print("Clare")}, 
+                                                                   if(filter(MichiganCountyLists, County == "Clinton")$Freq >= 100){print("Clinton")},
+                                                                   if(filter(MichiganCountyLists, County == "Crawford")$Freq >= 100){print("Crawford")},
+                                                                   if(filter(MichiganCountyLists, County == "Delta")$Freq >= 100){print("Delta")},
+                                                                   if(filter(MichiganCountyLists, County == "Dickinson")$Freq >= 100){print("Dickinson")}, 
+                                                                   if(filter(MichiganCountyLists, County == "Eaton")$Freq >= 100){print("Eaton")},
+                                                                   if(filter(MichiganCountyLists, County == "Emmet")$Freq >= 100){print("Emmet")},
+                                                                   if(filter(MichiganCountyLists, County == "Genesee")$Freq >= 100){print("Genesee")},
+                                                                   if(filter(MichiganCountyLists, County == "Gladwin")$Freq >= 100){print("Gladwin")}, 
+                                                                   if(filter(MichiganCountyLists, County == "Gogebic")$Freq >= 100){print("Gogebic")},
+                                                                   if(filter(MichiganCountyLists, County == "Grand Traverse")$Freq >= 100){print("Grand Traverse")},
+                                                                   if(filter(MichiganCountyLists, County == "Gratiot")$Freq >= 100){print("Gratiot")},
+                                                                   if(filter(MichiganCountyLists, County == "Hillsdale")$Freq >= 100){print("Hillsdale")},
+                                                                   if(filter(MichiganCountyLists, County == "Houghton")$Freq >= 100){print("Houghton")}, 
+                                                                   if(filter(MichiganCountyLists, County == "Huron")$Freq >= 100){print("Huron")},
+                                                                   if(filter(MichiganCountyLists, County == "Ingham")$Freq >= 100){print("Ingham")},
+                                                                   if(filter(MichiganCountyLists, County == "Ionia")$Freq >= 100){print("Ionia")},
+                                                                   if(filter(MichiganCountyLists, County == "Iosco")$Freq >= 100){print("Iosco")}, 
+                                                                   if(filter(MichiganCountyLists, County == "Iron")$Freq >= 100){print("Iron")},
+                                                                   if(filter(MichiganCountyLists, County == "Isabella")$Freq >= 100){print("Isabella")},
+                                                                   if(filter(MichiganCountyLists, County == "Jackson")$Freq >= 100){print("Jackson")},
+                                                                   if(filter(MichiganCountyLists, County == "Kalamazoo")$Freq >= 100){print("Kalamazoo")}, 
+                                                                   if(filter(MichiganCountyLists, County == "Kalkaska")$Freq >= 100){print("Kalkaska")},
+                                                                   if(filter(MichiganCountyLists, County == "Kent")$Freq >= 100){print("Kent")},
+                                                                   if(filter(MichiganCountyLists, County == "Keweenaw")$Freq >= 100){print("Keweenaw")},
+                                                                   if(filter(MichiganCountyLists, County == "Lake")$Freq >= 100){print("Lake")}, 
+                                                                   if(filter(MichiganCountyLists, County == "Lapeer")$Freq >= 100){print("Lapeer")},
+                                                                   if(filter(MichiganCountyLists, County == "Leelanau")$Freq >= 100){print("Leelanau")},
+                                                                   if(filter(MichiganCountyLists, County == "Lenawee")$Freq >= 100){print("Lenawee")},
+                                                                   if(filter(MichiganCountyLists, County == "Livingston")$Freq >= 100){print("Livingston")}, 
+                                                                   if(filter(MichiganCountyLists, County == "Luce")$Freq >= 100){print("Luce")},
+                                                                   if(filter(MichiganCountyLists, County == "Mackinac")$Freq >= 100){print("Mackinac")},
+                                                                   if(filter(MichiganCountyLists, County == "Macomb")$Freq >= 100){print("Macomb")},
+                                                                   if(filter(MichiganCountyLists, County == "Manistee")$Freq >= 100){print("Manistee")}, 
+                                                                   if(filter(MichiganCountyLists, County == "Marquette")$Freq >= 100){print("Marquette")},
+                                                                   if(filter(MichiganCountyLists, County == "Mason")$Freq >= 100){print("Mason")},
+                                                                   if(filter(MichiganCountyLists, County == "Mecosta")$Freq >= 100){print("Mecosta")},
+                                                                   if(filter(MichiganCountyLists, County == "Menominee")$Freq >= 100){print("Menominee")}, 
+                                                                   if(filter(MichiganCountyLists, County == "Midland")$Freq >= 100){print("Midland")},
+                                                                   if(filter(MichiganCountyLists, County == "Missaukee")$Freq >= 100){print("Missaukee")},
+                                                                   if(filter(MichiganCountyLists, County == "Monroe")$Freq >= 100){print("Monroe")},
+                                                                   if(filter(MichiganCountyLists, County == "Montcalm")$Freq >= 100){print("Montcalm")}, 
+                                                                   if(filter(MichiganCountyLists, County == "Montmorency")$Freq >= 100){print("Montmorency")},
+                                                                   if(filter(MichiganCountyLists, County == "Muskegon")$Freq >= 100){print("Muskegon")},
+                                                                   if(filter(MichiganCountyLists, County == "Newaygo")$Freq >= 100){print("Newaygo")},
+                                                                   if(filter(MichiganCountyLists, County == "Oakland")$Freq >= 100){print("Oakland")}, 
+                                                                   if(filter(MichiganCountyLists, County == "Oceana")$Freq >= 100){print("Oceana")},
+                                                                   if(filter(MichiganCountyLists, County == "Ogemaw")$Freq >= 100){print("Ogemaw")},
+                                                                   if(filter(MichiganCountyLists, County == "Ontonagon")$Freq >= 100){print("Ontonagon")},
+                                                                   if(filter(MichiganCountyLists, County == "Osceola")$Freq >= 100){print("Osceola")}, 
+                                                                   if(filter(MichiganCountyLists, County == "Oscoda")$Freq >= 100){print("Oscoda")},
+                                                                   if(filter(MichiganCountyLists, County == "Otsego")$Freq >= 100){print("Otsego")},
+                                                                   if(filter(MichiganCountyLists, County == "Ottawa")$Freq >= 100){print("Ottawa")},
+                                                                   if(filter(MichiganCountyLists, County == "Presque Isle")$Freq >= 100){print("Presque Isle")}, 
+                                                                   if(filter(MichiganCountyLists, County == "Roscommon")$Freq >= 100){print("Roscommon")},
+                                                                   if(filter(MichiganCountyLists, County == "Saginaw")$Freq >= 100){print("Saginaw")},
+                                                                   if(filter(MichiganCountyLists, County == "Sanilac")$Freq >= 100){print("Sanilac")},
+                                                                   if(filter(MichiganCountyLists, County == "Schoolcraft")$Freq >= 100){print("Schoolcraft")}, 
+                                                                   if(filter(MichiganCountyLists, County == "Shiawassee")$Freq >= 100){print("Shiawassee")},
+                                                                   if(filter(MichiganCountyLists, County == "St. Clair")$Freq >= 100){print("St. Clair")},
+                                                                   if(filter(MichiganCountyLists, County == "St. Joseph")$Freq >= 100){print("St. Joseph")},
+                                                                   if(filter(MichiganCountyLists, County == "Tuscola")$Freq >= 100){print("Tuscola")}, 
+                                                                   if(filter(MichiganCountyLists, County == "Van Buren")$Freq >= 100){print("Van Buren")},
+                                                                   if(filter(MichiganCountyLists, County == "Washtenaw")$Freq >= 100){print("Washtenaw")},
+                                                                   if(filter(MichiganCountyLists, County == "Wayne")$Freq >= 100){print("Wayne")},
+                                                                   if(filter(MichiganCountyLists, County == "Wexford")$Freq >= 100){print("Wexford")},
+                                                                   " ",
+                                                                   if(round(Michigan_County_Ticks/83, digits = 2) >= 40){print("Average County Ticks")},
+                                                                   if(Michigan_County_Ticks >= 3500){print("Total County Ticks")},
+                                                                   "Annual County Ticks",
+                                                                   if(tally(filter(MIobs, year == 2020)[!duplicated(filter(MIobs, year == 2020)[,c('County','Common.Name')]),])$n >= 2000){print("     2020")},
+                                                                   if(tally(filter(MichiganCountyLists, Freq >= 300))$n > 0){print("Counties 300+")},
+                                                                   if(tally(filter(MichiganCountyLists, Freq >= 250))$n >= 3){print("Counties 250+")},
+                                                                   if(tally(filter(MichiganCountyLists, Freq >= 200))$n >= 5){print("Counties 200+")},
+                                                                   if(tally(filter(MichiganCountyLists, Freq >= 150))$n >= 7){print("Counties 150+")},
+                                                                   if(tally(filter(MichiganCountyLists, Freq >= 100))$n >= 10){print("Counties 100+")},
+                                                                   "Regional Lists/Ticks",
+                                                                   if(Upper_Peninsula_Life_List >= 200){print("Upper Peninsula List")},
+                                                                   if(Upper_Peninsula_County_Ticks >= 1000){print("Upper Peninsula Ticks")},
+                                                                   if(Keweenaw_Peninsula_Life_List >= 100){print("Keweenaw Peninsula List")},
+                                                                   if(Keweenaw_Peninsula_County_Ticks >= 300){print("Keweenaw Peninsula Ticks")},
+                                                                   if(Lower_Peninsula_Life_List >= 280){print("Lower Peninsula List")},
+                                                                   if(Lower_Peninsula_County_Ticks >= 2000){print("Lower Peninsula Ticks")},
+                                                                   if(Northern_Lower_Peninsula_Ticks >= 1000){print("N. Lower Peninsula Ticks")},
+                                                                   if(Southern_Lower_Peninsula_Ticks >= 1000){print("S. Lower Peninsula Ticks")},
+                                                                   if(Metro_Detroit_Life_List >= 250){print("Metro Detroit List")},
+                                                                   if(Metro_Detroit_County_Ticks >= 400){print("Metro Detroit Ticks")},
+                                                                   if(Saginaw_Bay_Life_List >= 250){print("Saginaw Bay Area List")},
+                                                                   if(Saginaw_Bay_County_Ticks >= 500){print("Saginaw Bay Area Ticks")},
+                                                                   "State Level Lists",
+                                                                   if(Michigan_State_Life_List >= 280){print("Michigan Life List")},
+                                                                   if(Michigan_January_List >= 100){print("January List")},
+                                                                   if(Michigan_February_List >= 100){print("February List")},
+                                                                   if(Michigan_March_List >= 100){print("March List")},
+                                                                   if(Michigan_April_List >= 150){print("April List")},
+                                                                   if(Michigan_May_List >= 200){print("May List")},
+                                                                   if(Michigan_June_List >= 150){print("June List")},
+                                                                   if(Michigan_July_List >= 150){print("July List")},
+                                                                   if(Michigan_August_List >= 150){print("August List")},
+                                                                   if(Michigan_September_List >= 150){print("September List")},
+                                                                   if(Michigan_October_List >= 150){print("October List")},
+                                                                   if(Michigan_November_List >= 100){print("November List")},
+                                                                   if(Michigan_December_List >= 100){print("December List")},
+                                                                   if(Michigan_All12Months_List >= 50){print("Birds seen All 12 Months")}
+),
+"Number" = c(" " , 
+             if(filter(MichiganCountyLists, County == "Alcona")$Freq >= 100){print(filter(MichiganCountyLists, County == "Alcona")$Freq)},
+             if(filter(MichiganCountyLists, County == "Alger")$Freq >= 100){print(filter(MichiganCountyLists, County == "Alger")$Freq)},
+             if(filter(MichiganCountyLists, County == "Allegan")$Freq >= 100){print(filter(MichiganCountyLists, County == "Allegan")$Freq)},
+             if(filter(MichiganCountyLists, County == "Alpena")$Freq >= 100){print(filter(MichiganCountyLists, County == "Alpena")$Freq)},
+             if(filter(MichiganCountyLists, County == "Antrim")$Freq >= 100){print(filter(MichiganCountyLists, County == "Antrim")$Freq)},
+             if(filter(MichiganCountyLists, County == "Arenac")$Freq >= 100){print(filter(MichiganCountyLists, County == "Arenac")$Freq)},
+             if(filter(MichiganCountyLists, County == "Baraga")$Freq >= 100){print(filter(MichiganCountyLists, County == "Baraga")$Freq)},
+             if(filter(MichiganCountyLists, County == "Barry")$Freq >= 100){print(filter(MichiganCountyLists, County == "Barry")$Freq)},
+             if(filter(MichiganCountyLists, County == "Bay")$Freq >= 100){print(filter(MichiganCountyLists, County == "Bay")$Freq)},
+             if(filter(MichiganCountyLists, County == "Benzie")$Freq >= 100){print(filter(MichiganCountyLists, County == "Benzie")$Freq)},
+             if(filter(MichiganCountyLists, County == "Berrien")$Freq >= 100){print(filter(MichiganCountyLists, County == "Berrien")$Freq)},
+             if(filter(MichiganCountyLists, County == "Branch")$Freq >= 100){print(filter(MichiganCountyLists, County == "Branch")$Freq)},
+             if(filter(MichiganCountyLists, County == "Calhoun")$Freq >= 100){print(filter(MichiganCountyLists, County == "Calhoun")$Freq)},
+             if(filter(MichiganCountyLists, County == "Cass")$Freq >= 100){print(filter(MichiganCountyLists, County == "Cass")$Freq)},
+             if(filter(MichiganCountyLists, County == "Charlevoix")$Freq >= 100){print(filter(MichiganCountyLists, County == "Charlevoix")$Freq)},
+             if(filter(MichiganCountyLists, County == "Cheboygan")$Freq >= 100){print(filter(MichiganCountyLists, County == "Cheboygan")$Freq)},
+             if(filter(MichiganCountyLists, County == "Chippewa")$Freq >= 100){print(filter(MichiganCountyLists, County == "Chippewa")$Freq)},
+             if(filter(MichiganCountyLists, County == "Clare")$Freq >= 100){print(filter(MichiganCountyLists, County == "Clare")$Freq)},
+             if(filter(MichiganCountyLists, County == "Clinton")$Freq >= 100){print(filter(MichiganCountyLists, County == "Clinton")$Freq)},
+             if(filter(MichiganCountyLists, County == "Crawford")$Freq >= 100){print(filter(MichiganCountyLists, County == "Crawford")$Freq)},
+             if(filter(MichiganCountyLists, County == "Delta")$Freq >= 100){print(filter(MichiganCountyLists, County == "Delta")$Freq)},
+             if(filter(MichiganCountyLists, County == "Dickinson")$Freq >= 100){print(filter(MichiganCountyLists, County == "Dickinson")$Freq)},
+             if(filter(MichiganCountyLists, County == "Eaton")$Freq >= 100){print(filter(MichiganCountyLists, County == "Eaton")$Freq)},
+             if(filter(MichiganCountyLists, County == "Emmet")$Freq >= 100){print(filter(MichiganCountyLists, County == "Emmet")$Freq)},
+             if(filter(MichiganCountyLists, County == "Genesee")$Freq >= 100){print(filter(MichiganCountyLists, County == "Genesee")$Freq)},
+             if(filter(MichiganCountyLists, County == "Gladwin")$Freq >= 100){print(filter(MichiganCountyLists, County == "Gladwin")$Freq)},
+             if(filter(MichiganCountyLists, County == "Gogebic")$Freq >= 100){print(filter(MichiganCountyLists, County == "Gogebic")$Freq)},
+             if(filter(MichiganCountyLists, County == "Grand Traverse")$Freq >= 100){print(filter(MichiganCountyLists, County == "Grand Traverse")$Freq)},
+             if(filter(MichiganCountyLists, County == "Gratiot")$Freq >= 100){print(filter(MichiganCountyLists, County == "Gratiot")$Freq)},
+             if(filter(MichiganCountyLists, County == "Hillsdale")$Freq >= 100){print(filter(MichiganCountyLists, County == "Hillsdale")$Freq)},
+             if(filter(MichiganCountyLists, County == "Houghton")$Freq >= 100){print(filter(MichiganCountyLists, County == "Houghton")$Freq)},
+             if(filter(MichiganCountyLists, County == "Huron")$Freq >= 100){print(filter(MichiganCountyLists, County == "Huron")$Freq)},
+             if(filter(MichiganCountyLists, County == "Ingham")$Freq >= 100){print(filter(MichiganCountyLists, County == "Ingham")$Freq)},
+             if(filter(MichiganCountyLists, County == "Ionia")$Freq >= 100){print(filter(MichiganCountyLists, County == "Ionia")$Freq)},
+             if(filter(MichiganCountyLists, County == "Iosco")$Freq >= 100){print(filter(MichiganCountyLists, County == "Iosco")$Freq)},
+             if(filter(MichiganCountyLists, County == "Iron")$Freq >= 100){print(filter(MichiganCountyLists, County == "Iron")$Freq)},
+             if(filter(MichiganCountyLists, County == "Isabella")$Freq >= 100){print(filter(MichiganCountyLists, County == "Isabella")$Freq)},
+             if(filter(MichiganCountyLists, County == "Jackson")$Freq >= 100){print(filter(MichiganCountyLists, County == "Jackson")$Freq)},
+             if(filter(MichiganCountyLists, County == "Kalamazoo")$Freq >= 100){print(filter(MichiganCountyLists, County == "Kalamazoo")$Freq)},
+             if(filter(MichiganCountyLists, County == "Kalkaska")$Freq >= 100){print(filter(MichiganCountyLists, County == "Kalkaska")$Freq)},
+             if(filter(MichiganCountyLists, County == "Kent")$Freq >= 100){print(filter(MichiganCountyLists, County == "Kent")$Freq)},
+             if(filter(MichiganCountyLists, County == "Keweenaw")$Freq >= 100){print(filter(MichiganCountyLists, County == "Keweenaw")$Freq)},
+             if(filter(MichiganCountyLists, County == "Lake")$Freq >= 100){print(filter(MichiganCountyLists, County == "Lake")$Freq)},
+             if(filter(MichiganCountyLists, County == "Lapeer")$Freq >= 100){print(filter(MichiganCountyLists, County == "Lapeer")$Freq)},
+             if(filter(MichiganCountyLists, County == "Leelanau")$Freq >= 100){print(filter(MichiganCountyLists, County == "Leelanau")$Freq)},
+             if(filter(MichiganCountyLists, County == "Lenawee")$Freq >= 100){print(filter(MichiganCountyLists, County == "Lenawee")$Freq)},
+             if(filter(MichiganCountyLists, County == "Livingston")$Freq >= 100){print(filter(MichiganCountyLists, County == "Livingston")$Freq)},
+             if(filter(MichiganCountyLists, County == "Luce")$Freq >= 100){print(filter(MichiganCountyLists, County == "Luce")$Freq)},
+             if(filter(MichiganCountyLists, County == "Mackinac")$Freq >= 100){print(filter(MichiganCountyLists, County == "Mackinac")$Freq)},
+             if(filter(MichiganCountyLists, County == "Macomb")$Freq >= 100){print(filter(MichiganCountyLists, County == "Macomb")$Freq)},
+             if(filter(MichiganCountyLists, County == "Manistee")$Freq >= 100){print(filter(MichiganCountyLists, County == "Manistee")$Freq)},
+             if(filter(MichiganCountyLists, County == "Marquette")$Freq >= 100){print(filter(MichiganCountyLists, County == "Marquette")$Freq)},
+             if(filter(MichiganCountyLists, County == "Mason")$Freq >= 100){print(filter(MichiganCountyLists, County == "Mason")$Freq)},
+             if(filter(MichiganCountyLists, County == "Mecosta")$Freq >= 100){print(filter(MichiganCountyLists, County == "Mecosta")$Freq)},
+             if(filter(MichiganCountyLists, County == "Menominee")$Freq >= 100){print(filter(MichiganCountyLists, County == "Menominee")$Freq)},
+             if(filter(MichiganCountyLists, County == "Midland")$Freq >= 100){print(filter(MichiganCountyLists, County == "Midland")$Freq)},
+             if(filter(MichiganCountyLists, County == "Missaukee")$Freq >= 100){print(filter(MichiganCountyLists, County == "Missaukee")$Freq)},
+             if(filter(MichiganCountyLists, County == "Monroe")$Freq >= 100){print(filter(MichiganCountyLists, County == "Monroe")$Freq)},
+             if(filter(MichiganCountyLists, County == "Montcalm")$Freq >= 100){print(filter(MichiganCountyLists, County == "Montcalm")$Freq)},
+             if(filter(MichiganCountyLists, County == "Montmorency")$Freq >= 100){print(filter(MichiganCountyLists, County == "Montmorency")$Freq)},
+             if(filter(MichiganCountyLists, County == "Muskegon")$Freq >= 100){print(filter(MichiganCountyLists, County == "Muskegon")$Freq)},
+             if(filter(MichiganCountyLists, County == "Newaygo")$Freq >= 100){print(filter(MichiganCountyLists, County == "Newaygo")$Freq)},
+             if(filter(MichiganCountyLists, County == "Oakland")$Freq >= 100){print(filter(MichiganCountyLists, County == "Oakland")$Freq)},
+             if(filter(MichiganCountyLists, County == "Oceana")$Freq >= 100){print(filter(MichiganCountyLists, County == "Oceana")$Freq)},
+             if(filter(MichiganCountyLists, County == "Ogemaw")$Freq >= 100){print(filter(MichiganCountyLists, County == "Ogemaw")$Freq)},
+             if(filter(MichiganCountyLists, County == "Ontonagon")$Freq >= 100){print(filter(MichiganCountyLists, County == "Ontonagon")$Freq)},
+             if(filter(MichiganCountyLists, County == "Osceola")$Freq >= 100){print(filter(MichiganCountyLists, County == "Osceola")$Freq)},
+             if(filter(MichiganCountyLists, County == "Oscoda")$Freq >= 100){print(filter(MichiganCountyLists, County == "Oscoda")$Freq)},
+             if(filter(MichiganCountyLists, County == "Otsego")$Freq >= 100){print(filter(MichiganCountyLists, County == "Otsego")$Freq)},
+             if(filter(MichiganCountyLists, County == "Ottawa")$Freq >= 100){print(filter(MichiganCountyLists, County == "Ottawa")$Freq)},
+             if(filter(MichiganCountyLists, County == "Presque Isle")$Freq >= 100){print(filter(MichiganCountyLists, County == "Presque Isle")$Freq)},
+             if(filter(MichiganCountyLists, County == "Roscommon")$Freq >= 100){print(filter(MichiganCountyLists, County == "Roscommon")$Freq)},
+             if(filter(MichiganCountyLists, County == "Saginaw")$Freq >= 100){print(filter(MichiganCountyLists, County == "Saginaw")$Freq)},
+             if(filter(MichiganCountyLists, County == "Sanilac")$Freq >= 100){print(filter(MichiganCountyLists, County == "Sanilac")$Freq)},
+             if(filter(MichiganCountyLists, County == "Schoolcraft")$Freq >= 100){print(filter(MichiganCountyLists, County == "Schoolcraft")$Freq)},
+             if(filter(MichiganCountyLists, County == "Shiawassee")$Freq >= 100){print(filter(MichiganCountyLists, County == "Shiawassee")$Freq)},
+             if(filter(MichiganCountyLists, County == "St. Clair")$Freq >= 100){print(filter(MichiganCountyLists, County == "St. Clair")$Freq)},
+             if(filter(MichiganCountyLists, County == "St. Joseph")$Freq >= 100){print(filter(MichiganCountyLists, County == "St. Joseph")$Freq)},
+             if(filter(MichiganCountyLists, County == "Tuscola")$Freq >= 100){print(filter(MichiganCountyLists, County == "Tuscola")$Freq)},
+             if(filter(MichiganCountyLists, County == "Van Buren")$Freq >= 100){print(filter(MichiganCountyLists, County == "Van Buren")$Freq)},
+             if(filter(MichiganCountyLists, County == "Washtenaw")$Freq >= 100){print(filter(MichiganCountyLists, County == "Washtenaw")$Freq)},
+             if(filter(MichiganCountyLists, County == "Wayne")$Freq >= 100){print(filter(MichiganCountyLists, County == "Wayne")$Freq)},
+             if(filter(MichiganCountyLists, County == "Wexford")$Freq >= 100){print(filter(MichiganCountyLists, County == "Wexford")$Freq)},
+             " ",
+             if(round(Michigan_County_Ticks/83, digits = 2) >= 40){print(round(Michigan_County_Ticks/83, digits = 2))},
+             if(Michigan_County_Ticks >= 3500){print(Michigan_County_Ticks)},
+             " ",
+             if(tally(filter(MIobs, year == 2020)[!duplicated(filter(MIobs, year == 2020)[,c('County','Common.Name')]),])$n >= 2000){print(tally(filter(MIobs, year == 2020)[!duplicated(filter(MIobs, year == 2020)[,c('County','Common.Name')]),])$n)},
+             if(tally(filter(MichiganCountyLists, Freq >= 300))$n > 0){print(tally(filter(MichiganCountyLists, Freq >= 300))$n)},
+             if(tally(filter(MichiganCountyLists, Freq >= 250))$n >= 3){print(tally(filter(MichiganCountyLists, Freq >= 250))$n)},
+             if(tally(filter(MichiganCountyLists, Freq >= 200))$n >= 5){print(tally(filter(MichiganCountyLists, Freq >= 200))$n)},
+             if(tally(filter(MichiganCountyLists, Freq >= 150))$n >= 7){print(tally(filter(MichiganCountyLists, Freq >= 150))$n)},
+             if(tally(filter(MichiganCountyLists, Freq >= 100))$n >= 10){print(tally(filter(MichiganCountyLists, Freq >= 100))$n)},
+             " ",
+             if(Upper_Peninsula_Life_List >= 200){print(Upper_Peninsula_Life_List)},
+             if(Upper_Peninsula_County_Ticks >= 1000){print(Upper_Peninsula_County_Ticks)},
+             if(Keweenaw_Peninsula_Life_List >= 100){print(Keweenaw_Peninsula_Life_List)},
+             if(Keweenaw_Peninsula_County_Ticks >= 300){print(Keweenaw_Peninsula_County_Ticks)},
+             if(Lower_Peninsula_Life_List >= 280){print(Lower_Peninsula_Life_List)},
+             if(Lower_Peninsula_County_Ticks >= 2000){print(Lower_Peninsula_County_Ticks)},
+             if(Northern_Lower_Peninsula_Ticks >= 1000){print(Northern_Lower_Peninsula_Ticks)},
+             if(Southern_Lower_Peninsula_Ticks >= 1000){print(Southern_Lower_Peninsula_Ticks)},
+             if(Metro_Detroit_Life_List >= 250){print(Metro_Detroit_Life_List)},
+             if(Metro_Detroit_County_Ticks >= 400){print(Metro_Detroit_County_Ticks)},
+             if(Saginaw_Bay_Life_List >= 250){print(Saginaw_Bay_Life_List)},
+             if(Saginaw_Bay_County_Ticks >= 500){print(Saginaw_Bay_County_Ticks)},
+             " ",
+             if(Michigan_State_Life_List >= 280){print(Michigan_State_Life_List)},
+             if(Michigan_January_List >= 100){print(Michigan_January_List)},
+             if(Michigan_February_List >= 100){print(Michigan_February_List)},
+             if(Michigan_March_List >= 100){print(Michigan_March_List)},
+             if(Michigan_April_List >= 150){print(Michigan_April_List)},
+             if(Michigan_May_List >= 200){print(Michigan_May_List)},
+             if(Michigan_June_List >= 150){print(Michigan_June_List)},
+             if(Michigan_July_List >= 150){print(Michigan_July_List)},
+             if(Michigan_August_List >= 150){print(Michigan_August_List)},
+             if(Michigan_September_List >= 150){print(Michigan_September_List)},
+             if(Michigan_October_List >= 150){print(Michigan_October_List)},
+             if(Michigan_November_List >= 100){print(Michigan_November_List)},
+             if(Michigan_December_List >= 100){print(Michigan_December_List)},
+             if(Michigan_All12Months_List >= 50){print(Michigan_All12Months_List)}
+))         
+print(Your_Michigan_Listing_Totals)
