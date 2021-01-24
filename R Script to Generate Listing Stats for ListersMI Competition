@@ -1,4 +1,5 @@
-library(dplyr)
+library(tidyverse)
+library(plyr)
 library(lubridate)
 MyData<-read.csv("MyEBirdData.csv")
 MyData<-subset(MyData, select = -c(Submission.ID,
@@ -574,7 +575,7 @@ rm(Out, Groups, GroupsJoin1, CountableExotics, CountableFeralMuscovys, Countable
 UScountyFIPS<-read.csv("US_FIPS_Codes.csv")
 ProperCodes<-inner_join(ProperCodes, UScountyFIPS, by = c("County" = "County.Name", "StateFIPs" = "FIPS.State"))
 ProperCodes<-mutate(ProperCodes, FIPS.full = 1000*StateFIPs + FIPS.County)
-ProperCodes<-subset(ProperCodes, select = -c(ï..State, category))
+ProperCodes<-subset(ProperCodes, select = -c(?..State, category))
 ProperCodes<-ProperCodes %>%
   dplyr::mutate(year = lubridate::year(Date), 
                 month = lubridate::month(Date), 
@@ -587,7 +588,7 @@ MIobs<-filter(MIobs, Common.Name != "Whooping Crane",
               Common.Name != "Graylag Goose",
               Common.Name != "Smew",
               Common.Name != "Barnacle Goose")
-MIobs<-rbind(filter(MIobs, year <= 2005), filter(filter(MIobs, year > 2005), Common.Name != "Northern Bobwhite"))
+MIobs<-rbind(filter(MIobs, year <= 2008), filter(filter(MIobs, year > 2008), Common.Name != "Northern Bobwhite"))
 Michigan_State_Life_List<-tally(unique(subset(MIobs, select = c(Common.Name))))$n
 MichiganCountyLists<-as.data.frame(tally(~County, unique(subset(MIobs, select = c(Common.Name, County)))))
 Upper_Peninsula_Life_List<-tally(unique(subset(filter(MIobs, County == "Gogebic" |
@@ -764,9 +765,9 @@ Michigan_All12Months_List<-tally(inner_join(inner_join(inner_join(inner_join(fil
                                                        inner_join(inner_join(filter(MIobs, month == 5)[!duplicated(filter(MIobs, month == 5)[,c('Common.Name')]),], filter(MIobs, month == 6)[!duplicated(filter(MIobs, month == 6)[,c('Common.Name')]),], by = "Common.Name"),
                                                                   inner_join(filter(MIobs, month == 7)[!duplicated(filter(MIobs, month == 7)[,c('Common.Name')]),], filter(MIobs, month == 8)[!duplicated(filter(MIobs, month == 8)[,c('Common.Name')]),], by = "Common.Name"), by = "Common.Name"), by = "Common.Name"),
                                             inner_join(filter(MIobs, month == 11)[!duplicated(filter(MIobs, month == 11)[,c('Common.Name')]),], filter(MIobs, month == 12)[!duplicated(filter(MIobs, month == 12)[,c('Common.Name')]),], by = "Common.Name"), by = "Common.Name"))$n
-if(filter(MichiganCountyLists, County == "Allegan")$Freq >= 100){print(filter(MichiganCountyLists, County == "Allegan")$Freq)}
+MichiganCountyLists<-count(MIticks, 'County')
+colnames(MichiganCountyLists)<-c("County","Freq")
 
-filter(filter(MichiganCountyLists, County == "Alcona"), Freq >= 50)
 
 Your_Michigan_Listing_Totals<-data.frame("List or Other Total" = c("County Life Lists", 
                                                                    if(filter(MichiganCountyLists, County == "Alcona")$Freq >= 100){print("Alcona")},
@@ -1015,3 +1016,4 @@ Your_Michigan_Listing_Totals<-data.frame("List or Other Total" = c("County Life 
              if(Michigan_All12Months_List >= 50){print(Michigan_All12Months_List)}
 ))         
 print(Your_Michigan_Listing_Totals)
+
